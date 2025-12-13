@@ -13,7 +13,8 @@ import L from "leaflet";
 // --- TS-SAFE FIX FOR LEAFLET ICONS ---
 // Fixes "Cannot find module" errors for .png files and prototype modifications
 const fixLeafletIcon = () => {
-  // @ts-expect-error: _getIconUrl is a private property, we need to delete it to reset icons
+  // ts-expect-error: _getIconUrl is a private property, we need to delete it to reset icons.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   delete (L.Icon.Default.prototype as any)._getIconUrl;
 
   L.Icon.Default.mergeOptions({
