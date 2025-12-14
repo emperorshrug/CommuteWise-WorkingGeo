@@ -106,3 +106,54 @@
   }
 }
 /* --- END BLUE DOT GPS MARKER --- */
+
+/* --- FIXED GPS MARKER --- */
+/* This removes the default leaflet border/bg usually found on markers */
+.custom-user-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* The actual Blue Dot */
+.user-dot {
+  width: 14px;
+  height: 14px;
+  background-color: #2563eb; /* Blue-600 */
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+
+  /* ABSOLUTE CENTERING MAGIC */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+}
+
+/* The Pulsing Ring */
+.user-pulse {
+  width: 40px; /* Start bigger than the dot */
+  height: 40px;
+  background-color: rgba(37, 99, 235, 0.4);
+  border-radius: 50%;
+
+  /* ABSOLUTE CENTERING MAGIC */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  animation: pulse-animation 2.5s infinite ease-out;
+}
+
+@keyframes pulse-animation {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5); /* Start small */
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2); /* Grow huge */
+    opacity: 0;
+  }
+}
