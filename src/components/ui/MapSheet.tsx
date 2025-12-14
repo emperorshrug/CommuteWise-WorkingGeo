@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   Drawer,
   DrawerContent,
@@ -18,8 +19,6 @@ export default function MapSheet() {
   const { selectedTerminal, clearSelection, selectRoute, isRouteViewMode } =
     useAppStore();
 
-  // --- 1. DATA FETCHING (Golden Stack) ---
-  // Fetch routes automatically when a terminal is selected
   const { data: routes = [] } = useQuery({
     queryKey: ["routes", selectedTerminal?.id],
     queryFn: async () => {
@@ -30,14 +29,9 @@ export default function MapSheet() {
         .eq("terminal_id", selectedTerminal.id);
       return data || [];
     },
-    // Only run this query if we have a selected terminal
     enabled: !!selectedTerminal,
   });
 
-  // --- 2. VISIBILITY LOGIC ---
-  // The sheet is OPEN if:
-  // 1. We have a selected terminal
-  // 2. We are NOT currently looking at a specific route map (Route View Mode)
   const isOpen = !!selectedTerminal && !isRouteViewMode;
 
   if (!selectedTerminal) return null;
@@ -46,20 +40,15 @@ export default function MapSheet() {
     <Drawer
       open={isOpen}
       onOpenChange={(open) => !open && clearSelection()}
-      modal={false} // ALLOWS interaction with the Bottom Nav
+      modal={false}
     >
-      {/* LAYOUT FIX: 
-        - style={{ bottom: ... }}: Reads the dynamic variable from MainLayout 
-          to sit exactly on top of the Nav Bar.
-        - shadow-top: Adds visual separation.
-      */}
       <DrawerContent
-        className="bg-slate-50 max-h-[85vh] outline-none shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"
+        // FIX: z-[50] places it below the Nav Bar (z-[100])
+        // style={{ bottom: ... }} lifts it physically so it doesn't overlap
+        className="z-[50] bg-slate-50 max-h-[85vh] outline-none shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.2)] fixed inset-x-0"
         style={{ bottom: "var(--nav-height, 0px)" }}
       >
-        {/* --- WRAPPER --- */}
         <div className="w-full max-w-md mx-auto relative">
-          {/* Close Button */}
           <div className="absolute top-4 right-4 z-50">
             <Button
               variant="ghost"
@@ -71,14 +60,11 @@ export default function MapSheet() {
             </Button>
           </div>
 
-          {/* --- HEADER --- */}
           <DrawerHeader className="text-left pb-2">
             <div>
               <DrawerTitle className="text-2xl font-extrabold text-slate-900 leading-tight pr-10">
                 {selectedTerminal.name}
               </DrawerTitle>
-
-              {/* Vehicle Tags */}
               <div className="flex flex-wrap gap-2 mt-2">
                 {getVehicleTags(selectedTerminal.type).map((tag, i) => (
                   <span
@@ -89,14 +75,11 @@ export default function MapSheet() {
                   </span>
                 ))}
               </div>
-
               <DrawerDescription className="flex items-center mt-2 text-slate-500 font-medium">
                 <MapPin size={14} className="mr-1" />
                 {selectedTerminal.address || "Quezon City, Metro Manila"}
               </DrawerDescription>
             </div>
-
-            {/* Quick Stats */}
             <div className="flex gap-3 mt-3">
               <span className="flex items-center text-sm font-bold text-slate-700 bg-white border px-2 py-1 rounded-md shadow-sm">
                 <Star
@@ -115,9 +98,7 @@ export default function MapSheet() {
             </div>
           </DrawerHeader>
 
-          {/* --- SCROLLABLE CONTENT --- */}
           <div className="p-4 pt-0 space-y-4 overflow-y-auto max-h-[50vh]">
-            {/* 1. Community Rating Card */}
             <Card className="p-4 bg-white border-slate-200 shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-bold text-sm text-slate-800">
@@ -156,24 +137,21 @@ export default function MapSheet() {
                   "Organized queuing system during rush hour. Easy to locate."
                 </p>
                 <div className="flex items-center gap-1 mt-2 text-slate-400 hover:text-blue-500 cursor-pointer w-fit">
-                  <ThumbsUp size={12} />{" "}
+                  <ThumbsUp size={12} />
                   <span className="text-[10px]">Helpful (12)</span>
                 </div>
               </div>
             </Card>
 
-            {/* 2. Available Routes List */}
             <div>
               <h4 className="font-bold text-sm text-slate-800 mb-2 px-1">
                 Available Routes
               </h4>
-
               {routes.length === 0 ? (
                 <div className="text-center p-6 text-slate-400 text-sm italic border-2 border-dashed rounded-lg">
                   No routes found for this terminal yet.
                 </div>
               ) : (
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 routes.map((route: any) => (
                   <Card
                     key={route.id}
@@ -182,29 +160,22 @@ export default function MapSheet() {
                         ? "border-l-blue-500"
                         : "border-l-violet-500"
                     }`}
-                    // --- CLICK ACTION: VIEW ROUTE ON MAP ---
                     onClick={async () => {
-                      // 1. Fetch stops for this route
                       const { data: stops } = await supabase
                         .from("route_stops")
                         .select("*")
                         .eq("route_id", route.id)
                         .order("order_index", { ascending: true });
-
-                      // 2. Select it (Hides sheet, shows map line)
                       selectRoute(route, stops || []);
                     }}
                   >
                     <div className="p-3">
                       <div className="flex justify-between items-start mb-2">
-                        {/* Left Side Info */}
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <h5 className="font-extrabold text-base text-slate-800">
                               {route.name}
                             </h5>
-
-                            {/* Tags */}
                             {route.fare === 0 && (
                               <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded border border-red-200">
                                 LIBRENG SAKAY
@@ -216,15 +187,12 @@ export default function MapSheet() {
                               </span>
                             )}
                           </div>
-
                           <div className="text-xs text-slate-500 font-medium mt-1">
                             {selectedTerminal.name}{" "}
                             <span className="text-slate-300 mx-1">➜</span>{" "}
                             {route.destination}
                           </div>
                         </div>
-
-                        {/* Right Side Info */}
                         <div className="text-right min-w-[60px]">
                           {route.fare === 0 ? (
                             <div className="text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded inline-block">
@@ -240,17 +208,14 @@ export default function MapSheet() {
                           </div>
                         </div>
                       </div>
-
-                      {/* Stops Preview (Placeholder for now) */}
-                      <div className="text-[10px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
+                      <div className="text-[10px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100 flex justify-between items-center">
                         <span className="font-semibold text-slate-600">
                           {route.is_strict
-                            ? "Designated Stops:"
-                            : "Key Landmarks:"}
+                            ? "Designated Stops"
+                            : "Flexible Stops"}
                         </span>
-                        {/* We will implement the actual fetching of stop names in the next step */}
-                        <span className="italic ml-1">
-                          Tap to view stops map...
+                        <span className="text-blue-600 font-medium flex items-center">
+                          View Map <Bus size={10} className="ml-1" />
                         </span>
                       </div>
                     </div>
@@ -259,8 +224,6 @@ export default function MapSheet() {
               )}
             </div>
           </div>
-
-          {/* --- FOOTER --- */}
           <DrawerFooter className="pt-2">
             <Button className="w-full bg-slate-900 text-white hover:bg-slate-800">
               Get Directions to Terminal

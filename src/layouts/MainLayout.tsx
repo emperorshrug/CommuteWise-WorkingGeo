@@ -11,30 +11,21 @@ export default function MainLayout() {
   const navRef = useRef<HTMLDivElement>(null);
 
   // --- DYNAMIC HEIGHT CALCULATION ---
-  // This measures the Bottom Nav height and updates a CSS variable
   useEffect(() => {
     if (!navRef.current) return;
-
     const updateHeight = () => {
       const height = navRef.current?.offsetHeight || 0;
-      // We set this on 'document.body' so the Portal (Drawer) can read it
       document.body.style.setProperty("--nav-height", `${height}px`);
     };
-
-    // 1. Initial Measure
     updateHeight();
-
-    // 2. Observer (Updates if nav size changes due to content/device)
     const observer = new ResizeObserver(updateHeight);
     observer.observe(navRef.current);
-
     return () => observer.disconnect();
   }, []);
 
   return (
-    // FLEX COLUMN: Content takes remaining space, Nav takes what it needs
     <div className="flex flex-col h-screen w-full bg-slate-50 overflow-hidden">
-      {/* LAYER A: CONTENT AREA (Grows to fill space: flex-1) */}
+      {/* LAYER A: CONTENT AREA */}
       <div className="relative flex-1 overflow-hidden">
         {/* Map Background */}
         {isMapPage && (
@@ -57,15 +48,15 @@ export default function MainLayout() {
           <Outlet />
         </div>
 
-        {/* The Sheet lives here conceptually */}
+        {/* The Sheet lives here, visually 'inside' the content area */}
         <MapSheet />
       </div>
 
-      {/* LAYER B: NAVIGATION AREA (Natural Height) */}
-      {/* We add a ref here to measure it */}
+      {/* LAYER B: NAVIGATION AREA (HIGHEST Z-INDEX) */}
+      {/* z-[100] ensures the sheet SLIDES BEHIND this bar */}
       <div
         ref={navRef}
-        className="z-50 bg-white border-t border-gray-200 shrink-0 relative"
+        className="z-[100] bg-white border-t border-gray-200 shrink-0 relative"
       >
         <BottomNav />
       </div>

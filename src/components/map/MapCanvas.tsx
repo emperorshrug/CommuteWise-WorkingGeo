@@ -93,8 +93,26 @@ const RouteFitter = ({
   return null;
 };
 
-// NOTE: This does NOT use useMap, so it can live outside the container if needed,
-// but we put it inside for simpler z-index handling.
+const RecenterControl = ({ userPos }: { userPos: [number, number] | null }) => {
+  const map = useMap();
+  const handleClick = () => {
+    if (userPos) map.flyTo(userPos, 17, { animate: true, duration: 1 });
+  };
+  return (
+    // FIX: Moved to bottom-4 (lowest possible position in map)
+    <div className="absolute bottom-4 right-4 z-[1000]">
+      <button
+        onClick={handleClick}
+        aria-label="Recenter Map"
+        title="Recenter Map"
+        className="bg-white text-slate-700 h-12 w-12 rounded-full shadow-xl border border-slate-100 flex items-center justify-center hover:bg-slate-50 hover:text-blue-600 active:scale-95 transition-all duration-200"
+      >
+        <Crosshair size={22} strokeWidth={2.5} />
+      </button>
+    </div>
+  );
+};
+
 const BackToTerminalControl = () => {
   const { exitRouteView, selectedTerminal } = useAppStore();
   return (
@@ -105,26 +123,6 @@ const BackToTerminalControl = () => {
       >
         <ArrowLeft size={16} /> Back to {selectedTerminal?.name || "Terminal"}
       </Button>
-    </div>
-  );
-};
-
-// NOTE: This USES useMap, so it MUST be inside <MapContainer>
-const RecenterControl = ({ userPos }: { userPos: [number, number] | null }) => {
-  const map = useMap();
-  const handleClick = () => {
-    if (userPos) map.flyTo(userPos, 17, { animate: true, duration: 1 });
-  };
-  return (
-    <div className="absolute bottom-24 right-4 z-[1000]">
-      <button
-        onClick={handleClick}
-        aria-label="Recenter Map"
-        title="Recenter Map"
-        className="bg-white text-slate-700 h-12 w-12 rounded-full shadow-xl border border-slate-100 flex items-center justify-center hover:bg-slate-50 hover:text-blue-600 active:scale-95 transition-all duration-200"
-      >
-        <Crosshair size={22} strokeWidth={2.5} />
-      </button>
     </div>
   );
 };
@@ -200,14 +198,13 @@ export default function MapCanvas() {
           attribution="&copy; OpenStreetMap"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-
         {userLocation && (
           <Marker position={userLocation} icon={createUserIcon()}>
             <Popup>You are here</Popup>
           </Marker>
         )}
 
-        {/* SPIDER LEGS */}
+        {/* LAYER A: SPIDER LEGS */}
         {!isRouteViewMode &&
           selectedTerminal &&
           terminalRoutes.map((route: any) => {
@@ -227,19 +224,12 @@ export default function MapCanvas() {
             );
           })}
 
-        {/* TERMINALS */}
+        {/* LAYER B: TERMINALS */}
         {terminals.map((terminal: any) => (
           <Marker
             key={terminal.id}
             position={[terminal.lat, terminal.lng]}
             icon={createTerminalIcon(terminal.type)}
-            eventHandlers={{
-              click: (e) => {
-                const target = e.originalEvent?.target as HTMLElement;
-                target?.blur();
-                selectTerminal(terminal);
-              },
-            }}
           >
             <Popup className="custom-popup" minWidth={220}>
               <div className="flex flex-col gap-2 p-1">
@@ -274,7 +264,11 @@ export default function MapCanvas() {
                 <Button
                   size="sm"
                   className="w-full mt-2 bg-blue-600 hover:bg-blue-700 h-8 text-xs"
-                  onClick={() => selectTerminal(terminal)}
+                  onClick={(e) => {
+                    // FIX: Blur immediately to prevent focus trap error
+                    e.currentTarget.blur();
+                    selectTerminal(terminal);
+                  }}
                 >
                   View Terminal <ChevronRight size={14} className="ml-1" />
                 </Button>
@@ -283,7 +277,7 @@ export default function MapCanvas() {
           </Marker>
         ))}
 
-        {/* ACTIVE ROUTE */}
+        {/* LAYER C: ACTIVE ROUTE */}
         {isRouteViewMode && activePath && (
           <>
             <Polyline
@@ -314,15 +308,14 @@ export default function MapCanvas() {
           </>
         )}
 
-        {/* LOGIC & CONTROLS (MUST BE INSIDE MapContainer) */}
         <MapController
           userPos={userLocation}
           hasCentered={hasCentered}
           setHasCentered={setHasCentered}
         />
         <RecenterControl userPos={userLocation} />
-        {isRouteViewMode && <BackToTerminalControl />}
       </MapContainer>
+      {isRouteViewMode && <BackToTerminalControl />}
     </div>
   );
 }
