@@ -1,4 +1,4 @@
-// --- IMPORTS ---
+import { useEffect, useRef } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import BottomNav from "@/components/navigation/BottomNav";
 import TopSearchBar from "@/components/navigation/TopSearchBar";
@@ -6,55 +6,67 @@ import MapSheet from "@/components/ui/MapSheet";
 import MapCanvas from "@/components/map/MapCanvas";
 
 export default function MainLayout() {
-  // --- HOOKS ---
   const location = useLocation();
-
-  // --- LOGIC: IS MAP PAGE? ---
-  // WE ONLY SHOW THE MAP BACKGROUND IF WE ARE ON THE HOME PAGE ("/")
-  // OTHER PAGES LIKE "SETTINGS" MIGHT WANT A WHITE BACKGROUND
   const isMapPage = location.pathname === "/";
+  const navRef = useRef<HTMLDivElement>(null);
+
+  // --- DYNAMIC HEIGHT CALCULATION ---
+  // This measures the Bottom Nav height and updates a CSS variable
+  useEffect(() => {
+    if (!navRef.current) return;
+
+    const updateHeight = () => {
+      const height = navRef.current?.offsetHeight || 0;
+      // We set this on 'document.body' so the Portal (Drawer) can read it
+      document.body.style.setProperty("--nav-height", `${height}px`);
+    };
+
+    // 1. Initial Measure
+    updateHeight();
+
+    // 2. Observer (Updates if nav size changes due to content/device)
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(navRef.current);
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    // CONTAINER: FILLS THE SCREEN, PREVENTS SCROLLING ON BODY
-    <div className="relative w-full h-screen overflow-hidden flex flex-col bg-slate-50">
-      {/* --- LAYER 0: THE MAP BACKGROUND --- */}
-      {/* THIS IS ABSOLUTE POSITIONED SO IT SITS BEHIND EVERYTHING */}
-      {isMapPage && (
-        <div className="absolute inset-0 z-0">
-          <MapCanvas />
-        </div>
-      )}
-
-      {/* --- LAYER 1: TOP SEARCH BAR --- */}
-      {/* POINTER-EVENTS-NONE LETS CLICKS PASS THROUGH TO THE MAP... */}
-      {/* ...UNLESS YOU CLICK THE SEARCH BAR ITSELF (POINTER-EVENTS-AUTO) */}
-      {isMapPage && (
-        <div className="absolute top-0 left-0 right-0 z-10 p-4 pointer-events-none">
-          <div className="pointer-events-auto">
-            {/* TODO: CONNECT SEARCH BAR TO ZUSTAND STORE LATER */}
-            <TopSearchBar />
+    // FLEX COLUMN: Content takes remaining space, Nav takes what it needs
+    <div className="flex flex-col h-screen w-full bg-slate-50 overflow-hidden">
+      {/* LAYER A: CONTENT AREA (Grows to fill space: flex-1) */}
+      <div className="relative flex-1 overflow-hidden">
+        {/* Map Background */}
+        {isMapPage && (
+          <div className="absolute inset-0 z-0">
+            <MapCanvas />
           </div>
-        </div>
-      )}
+        )}
 
-      {/* --- LAYER 2: THE PAGE CONTENT --- */}
-      {/* THIS IS WHERE THE 'HOME', 'FORUM', OR 'ACCOUNT' COMPONENTS APPEAR */}
-      {/* IF IT'S THE MAP PAGE, WE MAKE THIS INVISIBLE SO WE SEE THE MAP */}
-      <div
-        className={`flex-1 relative z-20 ${
-          !isMapPage ? "bg-white overflow-y-auto pb-20" : "pointer-events-none"
-        }`}
-      >
-        <Outlet />
+        {/* Page Content */}
+        <div
+          className={`relative z-10 w-full h-full ${
+            !isMapPage ? "bg-white overflow-y-auto" : "pointer-events-none"
+          }`}
+        >
+          {isMapPage && (
+            <div className="absolute top-0 left-0 right-0 p-4 pointer-events-auto">
+              <TopSearchBar />
+            </div>
+          )}
+          <Outlet />
+        </div>
+
+        {/* The Sheet lives here conceptually */}
+        <MapSheet />
       </div>
 
-      {/* --- LAYER 3: GLOBAL OVERLAYS --- */}
-      {/* THE BOTTOM SHEET (DRAWER) THAT SLIDES UP */}
-      <MapSheet />
-
-      {/* --- LAYER 4: BOTTOM NAVIGATION BAR --- */}
-      {/* ALWAYS VISIBLE AT THE BOTTOM */}
-      <div className="absolute bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200">
+      {/* LAYER B: NAVIGATION AREA (Natural Height) */}
+      {/* We add a ref here to measure it */}
+      <div
+        ref={navRef}
+        className="z-50 bg-white border-t border-gray-200 shrink-0 relative"
+      >
         <BottomNav />
       </div>
     </div>

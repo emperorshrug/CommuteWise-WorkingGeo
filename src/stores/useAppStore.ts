@@ -1,21 +1,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { create } from 'zustand';
+import { create } from "zustand";
 
 // --- TYPES ---
-// We define the shape of our state so TypeScript knows what to expect.
-// We use 'any' for Terminal/Route for now, but will replace them with real types (Database Interfaces) later.
 interface AppState {
   // 1. DATA (State)
   userLocation: [number, number] | null;
-  selectedTerminal: any | null;
-  selectedRoute: any | null;
+  selectedTerminal: any | null; // Replace 'any' with Terminal type later
+  selectedRoute: any | null; // Replace 'any' with Route type later
+  routeStops: any[]; // New property for stops
 
-  // 2. ACTIONS (Setters)
+  // 2. VIEW STATE
+  isRouteViewMode: boolean; // New property for view mode
+
+  // 3. ACTIONS (Setters)
   setUserLocation: (loc: [number, number]) => void;
   selectTerminal: (terminal: any) => void;
-  selectRoute: (route: any) => void;
-  
-  // 3. UTILITIES
+  selectRoute: (route: any, stops: any[]) => void; // Updated signature
+
+  // 4. UTILITIES
+  exitRouteView: () => void; // New action
   clearSelection: () => void;
 }
 
@@ -25,19 +28,39 @@ export const useAppStore = create<AppState>((set) => ({
   userLocation: null,
   selectedTerminal: null,
   selectedRoute: null,
+  routeStops: [],
+  isRouteViewMode: false,
 
   // Action Logic
   setUserLocation: (loc) => set({ userLocation: loc }),
-  
-  selectTerminal: (terminal) => set({ 
-    selectedTerminal: terminal,
-    selectedRoute: null // Auto-deselect route when picking a new terminal
-  }),
-  
-  selectRoute: (route) => set({ selectedRoute: route }),
-  
-  clearSelection: () => set({ 
-    selectedTerminal: null, 
-    selectedRoute: null 
-  }),
+
+  selectTerminal: (terminal) =>
+    set({
+      selectedTerminal: terminal,
+      selectedRoute: null,
+      routeStops: [],
+      isRouteViewMode: false,
+    }),
+
+  selectRoute: (route, stops) =>
+    set({
+      selectedRoute: route,
+      routeStops: stops,
+      isRouteViewMode: true,
+    }),
+
+  exitRouteView: () =>
+    set({
+      isRouteViewMode: false,
+      // We keep selectedRoute/routeStops so the map can still show faint lines if needed,
+      // or you can clear them here if you prefer a clean slate.
+    }),
+
+  clearSelection: () =>
+    set({
+      selectedTerminal: null,
+      selectedRoute: null,
+      routeStops: [],
+      isRouteViewMode: false,
+    }),
 }));
