@@ -2,37 +2,85 @@
 import { create } from "zustand";
 
 // --- TYPES ---
+// STATE INTERFACE
+// Organized by sections for clarity
 interface AppState {
-  // 1. DATA (State)
+  // 1. DATA
+  // with userLocation as [lat, lng]
+  // e.g., [14.5995, 120.9842]
   userLocation: [number, number] | null;
-  selectedTerminal: any | null; // Replace 'any' with Terminal type later
-  selectedRoute: any | null; // Replace 'any' with Route type later
-  routeStops: any[]; // New property for stops
+  selectedTerminal: any | null;
+  selectedRoute: any | null;
+  routeStops: any[];
 
-  // 2. VIEW STATE
-  isRouteViewMode: boolean; // New property for view mode
+  // 2. SEARCH STATE
+  searchDestination: { lat: number; lng: number; name: string } | null;
+  isPickingLocation: boolean;
 
-  // 3. ACTIONS (Setters)
+  // 3. VIEW STATE
+  isRouteViewMode: boolean;
+  currentMapLocationName: string; // NEW: Stores "Holy Spirit", "Pasong Tamo", etc.
+
+  // 4. MAP PERSISTENCE
+  lastMapCenter: [number, number] | null;
+  lastMapZoom: number;
+  hasCentered: boolean;
+
+  // 5. ACTIONS
   setUserLocation: (loc: [number, number]) => void;
   selectTerminal: (terminal: any) => void;
-  selectRoute: (route: any, stops: any[]) => void; // Updated signature
+  selectRoute: (route: any, stops: any[]) => void;
+  setSearchDestination: (
+    dest: { lat: number; lng: number; name: string } | null,
+  ) => void;
+  setPickingLocation: (isPicking: boolean) => void;
+  setCurrentMapLocationName: (name: string) => void; // NEW ACTION
 
-  // 4. UTILITIES
-  exitRouteView: () => void; // New action
+  // 6. UTILITIES
+  setMapState: (center: [number, number], zoom: number) => void;
+  setHasCentered: (val: boolean) => void;
+  exitRouteView: () => void;
   clearSelection: () => void;
 }
 
 // --- STORE ---
 export const useAppStore = create<AppState>((set) => ({
-  // Initial Values
   userLocation: null,
   selectedTerminal: null,
   selectedRoute: null,
   routeStops: [],
+  searchDestination: null,
+  isPickingLocation: false,
   isRouteViewMode: false,
+  currentMapLocationName: "Locating...", // Default
+  lastMapCenter: null,
+  lastMapZoom: 13,
+  hasCentered: false,
 
-  // Action Logic
   setUserLocation: (loc) => set({ userLocation: loc }),
+
+  setMapState: (center, zoom) =>
+    set({ lastMapCenter: center, lastMapZoom: zoom }),
+
+  setHasCentered: (val) => set({ hasCentered: val }),
+
+  setSearchDestination: (dest) =>
+    set({
+      searchDestination: dest,
+      selectedTerminal: null,
+      isRouteViewMode: false,
+      isPickingLocation: false,
+    }),
+
+  setPickingLocation: (isPicking) =>
+    set({
+      isPickingLocation: isPicking,
+      isRouteViewMode: false,
+      selectedTerminal: null,
+      searchDestination: null,
+    }),
+
+  setCurrentMapLocationName: (name) => set({ currentMapLocationName: name }),
 
   selectTerminal: (terminal) =>
     set({
@@ -40,6 +88,8 @@ export const useAppStore = create<AppState>((set) => ({
       selectedRoute: null,
       routeStops: [],
       isRouteViewMode: false,
+      searchDestination: null,
+      isPickingLocation: false,
     }),
 
   selectRoute: (route, stops) =>
@@ -52,8 +102,6 @@ export const useAppStore = create<AppState>((set) => ({
   exitRouteView: () =>
     set({
       isRouteViewMode: false,
-      // We keep selectedRoute/routeStops so the map can still show faint lines if needed,
-      // or you can clear them here if you prefer a clean slate.
     }),
 
   clearSelection: () =>
@@ -62,5 +110,7 @@ export const useAppStore = create<AppState>((set) => ({
       selectedRoute: null,
       routeStops: [],
       isRouteViewMode: false,
+      searchDestination: null,
+      isPickingLocation: false,
     }),
 }));

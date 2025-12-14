@@ -14,7 +14,8 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <App />
-        <Toaster position="top-center" richColors />
+        {/* FIX: Moved toast to bottom-center to avoid blocking Search Bar */}
+        <Toaster position="bottom-center" richColors />
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>

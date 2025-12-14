@@ -13,13 +13,16 @@ export default function MainLayout() {
   // --- DYNAMIC HEIGHT CALCULATION ---
   useEffect(() => {
     if (!navRef.current) return;
+
     const updateHeight = () => {
       const height = navRef.current?.offsetHeight || 0;
       document.body.style.setProperty("--nav-height", `${height}px`);
     };
+
     updateHeight();
     const observer = new ResizeObserver(updateHeight);
     observer.observe(navRef.current);
+
     return () => observer.disconnect();
   }, []);
 
@@ -27,7 +30,7 @@ export default function MainLayout() {
     <div className="flex flex-col h-screen w-full bg-slate-50 overflow-hidden">
       {/* LAYER A: CONTENT AREA */}
       <div className="relative flex-1 overflow-hidden">
-        {/* Map Background */}
+        {/* Map Background (Only on Explore Tab) */}
         {isMapPage && (
           <div className="absolute inset-0 z-0">
             <MapCanvas />
@@ -48,12 +51,11 @@ export default function MainLayout() {
           <Outlet />
         </div>
 
-        {/* The Sheet lives here, visually 'inside' the content area */}
-        <MapSheet />
+        {/* FIX: Only render the Sheet if we are on the Map Page */}
+        {isMapPage && <MapSheet />}
       </div>
 
-      {/* LAYER B: NAVIGATION AREA (HIGHEST Z-INDEX) */}
-      {/* z-[100] ensures the sheet SLIDES BEHIND this bar */}
+      {/* LAYER B: NAVIGATION AREA */}
       <div
         ref={navRef}
         className="z-[100] bg-white border-t border-gray-200 shrink-0 relative"

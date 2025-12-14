@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -7,15 +7,17 @@ import {
   Popup,
   useMap,
   Polyline,
+  useMapEvents,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { useAppStore } from "@/stores/useAppStore";
-import { Crosshair, Star, ChevronRight, ArrowLeft } from "lucide-react";
+import { Crosshair, Star, ChevronRight, ArrowLeft, MapPin } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { getVehicleTags } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 // --- 1. ICONS ---
 const createUserIcon = () =>
@@ -24,6 +26,15 @@ const createUserIcon = () =>
     html: `<div class="user-pulse"></div><div class="user-dot"></div>`,
     iconSize: [40, 40],
     iconAnchor: [20, 20],
+  });
+
+const createDestIcon = () =>
+  L.divIcon({
+    className: "custom-dest-icon",
+    html: `<div style="font-size: 24px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">📍</div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
+    popupAnchor: [0, -28],
   });
 
 const createTerminalIcon = (type: string) => {
@@ -64,15 +75,94 @@ const createStopIcon = (color: string) =>
     iconAnchor: [6, 6],
   });
 
+// --- HELPER: Reverse Geocode ---
+const reverseGeocode = async (lat: number, lng: number) => {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+    );
+    const data = await res.json();
+    if (data && data.address) {
+      const a = data.address;
+      const establishment =
+        a.amenity ||
+        a.shop ||
+        a.tourism ||
+        a.leisure ||
+        a.building ||
+        a.road ||
+        "";
+      const city = a.city || a.town || a.municipality || "";
+      const region = a.state || a.region || "Metro Manila";
+      const postcode = a.postcode || "";
+
+      let formatted = "";
+      if (establishment) formatted += `${establishment}, `;
+      if (city) formatted += `${city}, `;
+      if (postcode) formatted += `${postcode} `;
+      if (region) formatted += region;
+
+      const neighborhood =
+        a.suburb || a.quarter || a.neighbourhood || city || "Unknown Location";
+
+      return { formatted, neighborhood };
+    }
+    return { formatted: "Unknown Location", neighborhood: "Unknown Area" };
+  } catch {
+    // FIX: Removed 'e' to silence linter
+    return { formatted: "Location Error", neighborhood: "Unknown Area" };
+  }
+};
+
 // --- 2. CONTROLLERS ---
-const MapController = ({ userPos, hasCentered, setHasCentered }: any) => {
+
+const MapStateTracker = () => {
+  const { setMapState, setCurrentMapLocationName } = useAppStore();
+
+  // FIX: Use ReturnType<typeof setTimeout> instead of NodeJS.Timeout for browser compatibility
+  const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
   const map = useMap();
+
+  useMapEvents({
+    moveend: () => {
+      // FIX: No event argument needed, we use the map instance
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      setMapState([center.lat, center.lng], zoom);
+
+      if (timer) clearTimeout(timer);
+      const newTimer = setTimeout(async () => {
+        const result = await reverseGeocode(center.lat, center.lng);
+        setCurrentMapLocationName(result.neighborhood);
+      }, 800);
+      setTimer(newTimer);
+    },
+  });
+  return null;
+};
+
+// Controls centering logic
+const MapController = ({ userPos }: { userPos: [number, number] | null }) => {
+  const map = useMap();
+  const { hasCentered, setHasCentered, searchDestination } = useAppStore();
+
   useEffect(() => {
+    if (searchDestination) {
+      map.flyTo([searchDestination.lat, searchDestination.lng], 16, {
+        animate: true,
+        duration: 1.5,
+      });
+      return;
+    }
+
     if (userPos && !hasCentered) {
       map.flyTo(userPos, 16, { animate: true, duration: 2 });
       setHasCentered(true);
     }
-  }, [userPos, hasCentered, map, setHasCentered]);
+  }, [userPos, hasCentered, searchDestination, map, setHasCentered]);
   return null;
 };
 
@@ -99,7 +189,6 @@ const RecenterControl = ({ userPos }: { userPos: [number, number] | null }) => {
     if (userPos) map.flyTo(userPos, 17, { animate: true, duration: 1 });
   };
   return (
-    // FIX: Moved to bottom-4 (lowest possible position in map)
     <div className="absolute bottom-4 right-4 z-[1000]">
       <button
         onClick={handleClick}
@@ -137,10 +226,15 @@ export default function MapCanvas() {
     routeStops,
     isRouteViewMode,
     selectedTerminal,
+    lastMapCenter,
+    lastMapZoom,
+    searchDestination,
+    isPickingLocation,
+    setSearchDestination,
   } = useAppStore();
 
-  const [hasCentered, setHasCentered] = useState(false);
   const locationRef = useRef(userLocation);
+  const mapRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
     locationRef.current = userLocation;
@@ -180,6 +274,21 @@ export default function MapCanvas() {
     enabled: !!selectedTerminal,
   });
 
+  const handleConfirmPick = async () => {
+    if (!mapRef.current) return;
+    const center = mapRef.current.getCenter();
+
+    const { formatted } = await reverseGeocode(center.lat, center.lng);
+
+    setSearchDestination({
+      lat: center.lat,
+      lng: center.lng,
+      name: formatted,
+    });
+
+    toast.success("Location selected!", { duration: 2000 });
+  };
+
   const parsePath = (jsonPath: any) =>
     jsonPath
       ? jsonPath.map((p: any) => [p[0], p[1]] as [number, number])
@@ -189,22 +298,43 @@ export default function MapCanvas() {
   return (
     <div className="w-full h-full relative">
       <MapContainer
-        center={userLocation || [14.6091, 121.0223]}
-        zoom={13}
-        className="w-full h-full outline-none"
+        ref={mapRef}
+        center={lastMapCenter || userLocation || [14.6091, 121.0223]}
+        zoom={lastMapZoom || 13}
+        className={`w-full h-full outline-none ${
+          isPickingLocation ? "cursor-crosshair" : ""
+        }`}
         zoomControl={false}
       >
         <TileLayer
           attribution="&copy; OpenStreetMap"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
         {userLocation && (
           <Marker position={userLocation} icon={createUserIcon()}>
             <Popup>You are here</Popup>
           </Marker>
         )}
 
-        {/* LAYER A: SPIDER LEGS */}
+        {searchDestination && !isPickingLocation && (
+          <Marker
+            position={[searchDestination.lat, searchDestination.lng]}
+            icon={createDestIcon()}
+          >
+            <Popup offset={[0, -32]}>
+              <div className="text-center p-1 max-w-[200px]">
+                <div className="font-bold text-sm text-slate-800 mb-1">
+                  Destination
+                </div>
+                <div className="text-xs text-slate-600 leading-tight">
+                  {searchDestination.name}
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+
         {!isRouteViewMode &&
           selectedTerminal &&
           terminalRoutes.map((route: any) => {
@@ -224,7 +354,6 @@ export default function MapCanvas() {
             );
           })}
 
-        {/* LAYER B: TERMINALS */}
         {terminals.map((terminal: any) => (
           <Marker
             key={terminal.id}
@@ -265,7 +394,6 @@ export default function MapCanvas() {
                   size="sm"
                   className="w-full mt-2 bg-blue-600 hover:bg-blue-700 h-8 text-xs"
                   onClick={(e) => {
-                    // FIX: Blur immediately to prevent focus trap error
                     e.currentTarget.blur();
                     selectTerminal(terminal);
                   }}
@@ -277,7 +405,6 @@ export default function MapCanvas() {
           </Marker>
         ))}
 
-        {/* LAYER C: ACTIVE ROUTE */}
         {isRouteViewMode && activePath && (
           <>
             <Polyline
@@ -308,13 +435,40 @@ export default function MapCanvas() {
           </>
         )}
 
-        <MapController
-          userPos={userLocation}
-          hasCentered={hasCentered}
-          setHasCentered={setHasCentered}
-        />
+        {/* LOGIC & CONTROLS */}
+        <MapController userPos={userLocation} />
+        <MapStateTracker />
         <RecenterControl userPos={userLocation} />
       </MapContainer>
+
+      {/* --- CENTER PIN PICKER UI --- */}
+      {isPickingLocation && (
+        <>
+          {/* Fixed Center Pin */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1000] pointer-events-none pb-9">
+            <MapPin
+              className="h-10 w-10 text-red-600 fill-red-600 drop-shadow-xl animate-bounce"
+              strokeWidth={1.5}
+            />
+          </div>
+
+          {/* Instructions & Confirm Button */}
+          <div className="absolute top-24 left-1/2 transform -translate-x-1/2 w-max z-[1000] flex flex-col items-center gap-3">
+            <div className="bg-slate-900/90 backdrop-blur text-white px-4 py-2 rounded-full shadow-xl text-xs font-bold animate-in fade-in slide-in-from-top-4">
+              Move map to adjust pin
+            </div>
+          </div>
+          <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-[1000] w-full px-6 max-w-sm">
+            <Button
+              onClick={handleConfirmPick}
+              className="w-full bg-slate-900 text-white shadow-xl h-12 text-sm font-bold"
+            >
+              Set Location
+            </Button>
+          </div>
+        </>
+      )}
+
       {isRouteViewMode && <BackToTerminalControl />}
     </div>
   );
