@@ -2,12 +2,8 @@
 import { create } from "zustand";
 
 // --- TYPES ---
-// STATE INTERFACE
-// Organized by sections for clarity
 interface AppState {
   // 1. DATA
-  // with userLocation as [lat, lng]
-  // e.g., [14.5995, 120.9842]
   userLocation: [number, number] | null;
   selectedTerminal: any | null;
   selectedRoute: any | null;

@@ -75,41 +75,80 @@ const createStopIcon = (color: string) =>
     iconAnchor: [6, 6],
   });
 
-// --- HELPER: Reverse Geocode ---
+// --- HELPER: Reverse Geocode (Nominatim) ---
 const reverseGeocode = async (lat: number, lng: number) => {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
     );
+    if (!res.ok) throw new Error("Geocode failed");
+
     const data = await res.json();
     if (data && data.address) {
       const a = data.address;
+
+      // 1. Identify Specific Place (Establishment)
       const establishment =
         a.amenity ||
         a.shop ||
         a.tourism ||
         a.leisure ||
         a.building ||
-        a.road ||
+        a.office ||
+        a.historic ||
         "";
+
+      // 2. Identify Street / Road
+      const street = a.road || a.pedestrian || a.street || "";
+      const houseNumber = a.house_number ? `${a.house_number} ` : "";
+
+      // 3. Identify Neighborhood / Barangay / District
+      const neighborhood =
+        a.suburb ||
+        a.quarter ||
+        a.neighbourhood ||
+        a.district ||
+        a.village ||
+        "";
+
+      // 4. Identify City / Municipality
       const city = a.city || a.town || a.municipality || "";
+
+      // 5. Region & Postcode
       const region = a.state || a.region || "Metro Manila";
       const postcode = a.postcode || "";
 
+      // --- FORMATTING LOGIC ---
       let formatted = "";
-      if (establishment) formatted += `${establishment}, `;
-      if (city) formatted += `${city}, `;
-      if (postcode) formatted += `${postcode} `;
-      if (region) formatted += region;
 
-      const neighborhood =
-        a.suburb || a.quarter || a.neighbourhood || city || "Unknown Location";
+      // "SM City North EDSA, North Avenue..."
+      if (establishment) {
+        formatted += `${establishment}, `;
+      }
 
-      return { formatted, neighborhood };
+      // "1 Sampaguita Ave, ..." OR "North Avenue..."
+      if (street) {
+        formatted += `${houseNumber}${street}, `;
+      }
+
+      // "Barangay Holy Spirit, ..."
+      if (neighborhood && neighborhood !== city) {
+        formatted += `${neighborhood}, `;
+      }
+
+      // "Quezon City, 1100 Metro Manila"
+      formatted += `${city}, ${postcode} ${region}`;
+
+      // Clean up any double commas or trailing spaces
+      formatted = formatted.replace(/, ,/g, ",").replace(/,$/, "").trim();
+
+      // Short name for the "Pill" in bottom sheet
+      const shortName = neighborhood || city || "Unknown Location";
+
+      return { formatted, neighborhood: shortName };
     }
     return { formatted: "Unknown Location", neighborhood: "Unknown Area" };
   } catch {
-    // FIX: Removed 'e' to silence linter
     return { formatted: "Location Error", neighborhood: "Unknown Area" };
   }
 };
@@ -118,29 +157,31 @@ const reverseGeocode = async (lat: number, lng: number) => {
 
 const MapStateTracker = () => {
   const { setMapState, setCurrentMapLocationName } = useAppStore();
-
-  // FIX: Use ReturnType<typeof setTimeout> instead of NodeJS.Timeout for browser compatibility
   const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(
     null
   );
-
   const map = useMap();
 
   useMapEvents({
-    moveend: () => {
-      // FIX: No event argument needed, we use the map instance
-      const center = map.getCenter();
-      const zoom = map.getZoom();
-      setMapState([center.lat, center.lng], zoom);
-
-      if (timer) clearTimeout(timer);
-      const newTimer = setTimeout(async () => {
-        const result = await reverseGeocode(center.lat, center.lng);
-        setCurrentMapLocationName(result.neighborhood);
-      }, 800);
-      setTimer(newTimer);
-    },
+    // FIX: Using 'dragend' and 'zoomend' prevents API spam during animations
+    dragend: () => updateMapState(),
+    zoomend: () => updateMapState(),
   });
+
+  const updateMapState = () => {
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    setMapState([center.lat, center.lng], zoom);
+
+    // Debounce the API call
+    if (timer) clearTimeout(timer);
+    const newTimer = setTimeout(async () => {
+      const result = await reverseGeocode(center.lat, center.lng);
+      setCurrentMapLocationName(result.neighborhood);
+    }, 500);
+    setTimer(newTimer);
+  };
+
   return null;
 };
 
@@ -274,16 +315,19 @@ export default function MapCanvas() {
     enabled: !!selectedTerminal,
   });
 
+  // CONFIRM PICK LOGIC
   const handleConfirmPick = async () => {
     if (!mapRef.current) return;
     const center = mapRef.current.getCenter();
 
+    // 1. Get readable address
     const { formatted } = await reverseGeocode(center.lat, center.lng);
 
+    // 2. Update Search Input & Store
     setSearchDestination({
       lat: center.lat,
       lng: center.lng,
-      name: formatted,
+      name: formatted, // This will now appear in the text field!
     });
 
     toast.success("Location selected!", { duration: 2000 });
@@ -452,12 +496,14 @@ export default function MapCanvas() {
             />
           </div>
 
-          {/* Instructions & Confirm Button */}
+          {/* Instructions */}
           <div className="absolute top-24 left-1/2 transform -translate-x-1/2 w-max z-[1000] flex flex-col items-center gap-3">
             <div className="bg-slate-900/90 backdrop-blur text-white px-4 py-2 rounded-full shadow-xl text-xs font-bold animate-in fade-in slide-in-from-top-4">
               Move map to adjust pin
             </div>
           </div>
+
+          {/* Confirm Button */}
           <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-[1000] w-full px-6 max-w-sm">
             <Button
               onClick={handleConfirmPick}

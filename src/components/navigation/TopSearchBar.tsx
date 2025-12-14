@@ -29,10 +29,25 @@ export default function TopSearchBar() {
   const [activeField, setActiveField] = useState<"start" | "dest">("dest");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  const { setSearchDestination, clearSelection, setPickingLocation } =
-    useAppStore();
+  const {
+    setSearchDestination,
+    clearSelection,
+    setPickingLocation,
+    searchDestination,
+  } = useAppStore();
 
-  // 1. Debounce Logic (Increased to 1000ms to allow free API breathing room)
+  // FIX: Sync text field with map selection
+  // We add a check to ensure we don't re-set the state if it's already correct.
+  useEffect(() => {
+    if (searchDestination?.name && searchDestination.name !== destQuery) {
+      setDestQuery(searchDestination.name);
+    }
+    // We intentionally exclude 'destQuery' from dependencies to avoid overriding
+    // user typing. We only want to update when the *Store* (searchDestination) changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchDestination]);
+
+  // 1. Debounce Logic
   useEffect(() => {
     const query = activeField === "start" ? startQuery : destQuery;
     if (query === "Current Location") return;
@@ -52,7 +67,6 @@ export default function TopSearchBar() {
       )
         return [];
 
-      // Added addressdetails=1 and limited viewbox to help accuracy
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           debouncedQuery
@@ -64,8 +78,8 @@ export default function TopSearchBar() {
       return (await res.json()) as SearchResult[];
     },
     enabled: !!debouncedQuery && isExpanded,
-    retry: false, // STOP RETRYING ON 403 (Saves your credits/ban status)
-    staleTime: 1000 * 60 * 5, // Cache results for 5 mins
+    retry: false,
+    staleTime: 1000 * 60 * 5,
   });
 
   const handleSelect = (place: SearchResult) => {
@@ -75,7 +89,7 @@ export default function TopSearchBar() {
         lng: parseFloat(place.lon),
         name: place.display_name.split(",")[0],
       });
-      setDestQuery(place.display_name.split(",")[0]);
+      // Input update is now handled by the useEffect above
       setIsExpanded(false);
     } else {
       setStartQuery(place.display_name.split(",")[0]);
@@ -84,7 +98,7 @@ export default function TopSearchBar() {
 
   const handleSelectOnMap = () => {
     setIsExpanded(false);
-    setPickingLocation(true); // Enable "Pick Mode" in Map
+    setPickingLocation(true);
   };
 
   const isSearching =
