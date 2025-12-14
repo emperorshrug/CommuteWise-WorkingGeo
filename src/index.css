@@ -66,3 +66,43 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* --- BLUE DOT GPS MARKER --- */
+.custom-user-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.user-dot {
+  width: 12px;
+  height: 12px;
+  background-color: #2563eb; /* Blue-600 */
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+}
+
+.user-pulse {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background-color: rgba(37, 99, 235, 0.4);
+  border-radius: 50%;
+  z-index: 1;
+  animation: pulse-animation 2s infinite;
+}
+
+@keyframes pulse-animation {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(4); /* Expands to 4x size */
+    opacity: 0;
+  }
+}
+/* --- END BLUE DOT GPS MARKER --- */
