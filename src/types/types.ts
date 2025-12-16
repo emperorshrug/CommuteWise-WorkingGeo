@@ -1,3 +1,5 @@
+// src/types/types.ts
+
 export interface Coordinates {
   lat: number;
   lng: number;
@@ -25,10 +27,14 @@ export interface CalculatedRoute {
   totalTimeMin: number;
   totalDistanceKm: number;
   totalCost: number;
-  path: Coordinates[];
+  path: Coordinates[]; // Array of {lat, lng}
   steps: RouteStep[];
   type: "FASTEST" | "CHEAPEST" | "SHORTEST";
   tags: string[];
+
+  // FIX: Added these to satisfy MapCanvas.tsx
+  color?: string;
+  path_shape?: string; // Optional: In case we use encoded polylines later
 }
 
 export interface TerminalData {
@@ -36,6 +42,5 @@ export interface TerminalData {
   name: string;
   lat: number;
   lng: number;
-  // FIX: Changed 'any' to 'unknown' to satisfy linter
   [key: string]: unknown;
 }

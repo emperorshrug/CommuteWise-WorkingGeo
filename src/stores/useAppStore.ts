@@ -1,6 +1,6 @@
+// src/stores/useAppStore.ts
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-// FIX 1: Added 'type' keyword here
 import type { CalculatedRoute, TerminalData } from "@/types/types";
 
 export interface UserProfile {
@@ -11,6 +11,7 @@ export interface UserProfile {
 }
 
 interface AppState {
+  // --- AUTH STATE ---
   user: UserProfile | null;
   isAuthenticated: boolean;
   hasAcceptedTerms: boolean;
@@ -19,19 +20,23 @@ interface AppState {
   setAcceptedTerms: (accepted: boolean) => void;
   logout: () => void;
 
+  // --- MAP STATE (Fixed missing properties) ---
   userLocation: [number, number] | null;
   searchDestination: { lat: number; lng: number; name: string } | null;
-
   selectedTerminal: TerminalData | null;
   selectedRoute: CalculatedRoute | null;
-
-  // FIX 2: Changed 'any[]' to 'unknown[]'
   routeStops: unknown[];
+
+  // Missing properties restored:
+  lastMapCenter: [number, number] | null;
+  lastMapZoom: number;
+  hasCentered: boolean;
 
   isRouteViewMode: boolean;
   isPickingLocation: boolean;
   currentMapLocationName: string;
 
+  // --- ACTIONS ---
   setUserLocation: (loc: [number, number]) => void;
   setSearchDestination: (
     dest: { lat: number; lng: number; name: string } | null
@@ -39,17 +44,19 @@ interface AppState {
   setPickingLocation: (isPicking: boolean) => void;
   setCurrentMapLocationName: (name: string) => void;
   selectTerminal: (terminal: TerminalData) => void;
-
-  // FIX 3: Changed 'any[]' to 'unknown[]'
   selectRoute: (route: CalculatedRoute, stops: unknown[]) => void;
-
   exitRouteView: () => void;
   clearSelection: () => void;
+
+  // Map state actions
+  setMapState: (center: [number, number], zoom: number) => void;
+  setHasCentered: (has: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
+      // INITIAL STATE
       user: null,
       isAuthenticated: false,
       hasAcceptedTerms: false,
@@ -58,10 +65,17 @@ export const useAppStore = create<AppState>()(
       selectedTerminal: null,
       selectedRoute: null,
       routeStops: [],
+
+      // Map Defaults
+      lastMapCenter: [14.676, 121.0437], // Default to Tandang Sora
+      lastMapZoom: 15,
+      hasCentered: false,
+
       isRouteViewMode: false,
       isPickingLocation: false,
       currentMapLocationName: "Quezon City",
 
+      // ACTIONS
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setGuestUser: () =>
         set({
@@ -116,6 +130,11 @@ export const useAppStore = create<AppState>()(
           searchDestination: null,
           isPickingLocation: false,
         }),
+
+      // Fix: Implement setMapState
+      setMapState: (center, zoom) =>
+        set({ lastMapCenter: center, lastMapZoom: zoom }),
+      setHasCentered: (has) => set({ hasCentered: has }),
     }),
     {
       name: "commutewise-storage",

@@ -15,17 +15,51 @@ import { useAppStore } from "@/stores/useAppStore";
 import { Crosshair, Star, ChevronRight, ArrowLeft, MapPin } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { getVehicleTags } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query"; // Ensure this is installed
 import { toast } from "sonner";
+import { getLocationName } from "@/services/routingService"; // We use our new service!
 
-// --- 1. ICONS ---
+// --- 1. ICONS & HELPERS ---
+
+// Helper for Terminal Tags
+const getVehicleTags = (type: string) => {
+  const t = type.toLowerCase();
+  if (t === "bus")
+    return [
+      { label: "BUS", color: "bg-blue-100 text-blue-700 border-blue-200" },
+    ];
+  if (t === "jeepney")
+    return [
+      {
+        label: "JEEP",
+        color: "bg-yellow-100 text-yellow-700 border-yellow-200",
+      },
+    ];
+  if (t === "tricycle")
+    return [
+      { label: "TRIKE", color: "bg-green-100 text-green-700 border-green-200" },
+    ];
+  if (t === "e-jeepney")
+    return [
+      {
+        label: "E-JEEP",
+        color: "bg-purple-100 text-purple-700 border-purple-200",
+      },
+    ];
+  return [
+    {
+      label: "TRANSPORT",
+      color: "bg-slate-100 text-slate-700 border-slate-200",
+    },
+  ];
+};
+
 const createUserIcon = () =>
   L.divIcon({
     className: "custom-user-icon",
-    html: `<div class="user-pulse"></div><div class="user-dot"></div>`,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
+    html: `<div class="w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg pulse-ring"></div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
   });
 
 const createDestIcon = () =>
@@ -75,84 +109,6 @@ const createStopIcon = (color: string) =>
     iconAnchor: [6, 6],
   });
 
-// --- HELPER: Reverse Geocode (Nominatim) ---
-const reverseGeocode = async (lat: number, lng: number) => {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
-    );
-    if (!res.ok) throw new Error("Geocode failed");
-
-    const data = await res.json();
-    if (data && data.address) {
-      const a = data.address;
-
-      // 1. Identify Specific Place (Establishment)
-      const establishment =
-        a.amenity ||
-        a.shop ||
-        a.tourism ||
-        a.leisure ||
-        a.building ||
-        a.office ||
-        a.historic ||
-        "";
-
-      // 2. Identify Street / Road
-      const street = a.road || a.pedestrian || a.street || "";
-      const houseNumber = a.house_number ? `${a.house_number} ` : "";
-
-      // 3. Identify Neighborhood / Barangay / District
-      const neighborhood =
-        a.suburb ||
-        a.quarter ||
-        a.neighbourhood ||
-        a.district ||
-        a.village ||
-        "";
-
-      // 4. Identify City / Municipality
-      const city = a.city || a.town || a.municipality || "";
-
-      // 5. Region & Postcode
-      const region = a.state || a.region || "Metro Manila";
-      const postcode = a.postcode || "";
-
-      // --- FORMATTING LOGIC ---
-      let formatted = "";
-
-      // "SM City North EDSA, North Avenue..."
-      if (establishment) {
-        formatted += `${establishment}, `;
-      }
-
-      // "1 Sampaguita Ave, ..." OR "North Avenue..."
-      if (street) {
-        formatted += `${houseNumber}${street}, `;
-      }
-
-      // "Barangay Holy Spirit, ..."
-      if (neighborhood && neighborhood !== city) {
-        formatted += `${neighborhood}, `;
-      }
-
-      // "Quezon City, 1100 Metro Manila"
-      formatted += `${city}, ${postcode} ${region}`;
-
-      // Clean up any double commas or trailing spaces
-      formatted = formatted.replace(/, ,/g, ",").replace(/,$/, "").trim();
-
-      // Short name for the "Pill" in bottom sheet
-      const shortName = neighborhood || city || "Unknown Location";
-
-      return { formatted, neighborhood: shortName };
-    }
-    return { formatted: "Unknown Location", neighborhood: "Unknown Area" };
-  } catch {
-    return { formatted: "Location Error", neighborhood: "Unknown Area" };
-  }
-};
-
 // --- 2. CONTROLLERS ---
 
 const MapStateTracker = () => {
@@ -163,7 +119,6 @@ const MapStateTracker = () => {
   const map = useMap();
 
   useMapEvents({
-    // FIX: Using 'dragend' and 'zoomend' prevents API spam during animations
     dragend: () => updateMapState(),
     zoomend: () => updateMapState(),
   });
@@ -176,9 +131,10 @@ const MapStateTracker = () => {
     // Debounce the API call
     if (timer) clearTimeout(timer);
     const newTimer = setTimeout(async () => {
-      const result = await reverseGeocode(center.lat, center.lng);
-      setCurrentMapLocationName(result.neighborhood);
-    }, 500);
+      // Use our Robust Service instead of local fetch!
+      const { name, area } = await getLocationName(center.lat, center.lng);
+      setCurrentMapLocationName(`${name}, ${area}`);
+    }, 800);
     setTimer(newTimer);
   };
 
@@ -294,6 +250,7 @@ export default function MapCanvas() {
     return () => navigator.geolocation.clearWatch(id);
   }, [setUserLocation]);
 
+  // TANSTACK QUERY FETCHING
   const { data: terminals = [] } = useQuery({
     queryKey: ["terminals"],
     queryFn: async () => {
@@ -308,6 +265,7 @@ export default function MapCanvas() {
       if (!selectedTerminal) return [];
       const { data } = await supabase
         .from("routes")
+        // FIX: Ensure these match your DB columns and Types
         .select("id, path_shape, color")
         .eq("terminal_id", selectedTerminal.id);
       return data || [];
@@ -321,13 +279,14 @@ export default function MapCanvas() {
     const center = mapRef.current.getCenter();
 
     // 1. Get readable address
-    const { formatted } = await reverseGeocode(center.lat, center.lng);
+    const { name, area } = await getLocationName(center.lat, center.lng);
+    const formatted = `${name}, ${area}`;
 
     // 2. Update Search Input & Store
     setSearchDestination({
       lat: center.lat,
       lng: center.lng,
-      name: formatted, // This will now appear in the text field!
+      name: formatted,
     });
 
     toast.success("Location selected!", { duration: 2000 });
@@ -337,13 +296,20 @@ export default function MapCanvas() {
     jsonPath
       ? jsonPath.map((p: any) => [p[0], p[1]] as [number, number])
       : null;
-  const activePath = selectedRoute ? parsePath(selectedRoute.path_shape) : null;
+
+  // FIX: Safe check for path_shape
+  const activePath =
+    selectedRoute && selectedRoute.path_shape
+      ? parsePath(selectedRoute.path_shape)
+      : selectedRoute && selectedRoute.path
+      ? selectedRoute.path.map((p) => [p.lat, p.lng])
+      : null;
 
   return (
     <div className="w-full h-full relative">
       <MapContainer
         ref={mapRef}
-        center={lastMapCenter || userLocation || [14.6091, 121.0223]}
+        center={lastMapCenter || userLocation || [14.676, 121.0437]}
         zoom={lastMapZoom || 13}
         className={`w-full h-full outline-none ${
           isPickingLocation ? "cursor-crosshair" : ""
@@ -454,7 +420,8 @@ export default function MapCanvas() {
             <Polyline
               positions={activePath}
               pathOptions={{
-                color: selectedRoute.color || "#EF4444",
+                // FIX: Check for color, fallback to red if missing
+                color: selectedRoute?.color || "#EF4444",
                 weight: 6,
                 opacity: 0.9,
               }}
@@ -464,7 +431,7 @@ export default function MapCanvas() {
               <Marker
                 key={stop.id}
                 position={[stop.lat, stop.lng]}
-                icon={createStopIcon(selectedRoute.color || "#EF4444")}
+                icon={createStopIcon(selectedRoute?.color || "#EF4444")}
               >
                 <Popup offset={[0, -6]}>
                   <div className="text-center">
