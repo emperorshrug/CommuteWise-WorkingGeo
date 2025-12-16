@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/stores/useAppStore";
-import { MapPin, AlertTriangle, Car, Navigation, Info } from "lucide-react";
+import { MapPin, AlertTriangle, Car, Navigation } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 export default function MapSheet() {

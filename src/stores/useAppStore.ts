@@ -1,7 +1,8 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware"; // For saving "Terms Accepted" state
+import { persist } from "zustand/middleware";
+// FIX 1: Added 'type' keyword here
+import type { CalculatedRoute, TerminalData } from "@/types/types";
 
-// --- TYPES ---
 export interface UserProfile {
   id: string;
   email: string;
@@ -10,7 +11,6 @@ export interface UserProfile {
 }
 
 interface AppState {
-  // --- AUTH STATE (From GoogleAI) ---
   user: UserProfile | null;
   isAuthenticated: boolean;
   hasAcceptedTerms: boolean;
@@ -19,25 +19,30 @@ interface AppState {
   setAcceptedTerms: (accepted: boolean) => void;
   logout: () => void;
 
-  // --- MAP & ROUTING STATE (From WorkingGeo) ---
   userLocation: [number, number] | null;
   searchDestination: { lat: number; lng: number; name: string } | null;
-  selectedTerminal: any | null;
-  selectedRoute: any | null;
-  routeStops: any[];
+
+  selectedTerminal: TerminalData | null;
+  selectedRoute: CalculatedRoute | null;
+
+  // FIX 2: Changed 'any[]' to 'unknown[]'
+  routeStops: unknown[];
+
   isRouteViewMode: boolean;
   isPickingLocation: boolean;
-  currentMapLocationName: string; // "Barangay Tandang Sora"
+  currentMapLocationName: string;
 
-  // --- ACTIONS ---
   setUserLocation: (loc: [number, number]) => void;
   setSearchDestination: (
     dest: { lat: number; lng: number; name: string } | null
   ) => void;
   setPickingLocation: (isPicking: boolean) => void;
   setCurrentMapLocationName: (name: string) => void;
-  selectTerminal: (terminal: any) => void;
-  selectRoute: (route: any, stops: any[]) => void;
+  selectTerminal: (terminal: TerminalData) => void;
+
+  // FIX 3: Changed 'any[]' to 'unknown[]'
+  selectRoute: (route: CalculatedRoute, stops: unknown[]) => void;
+
   exitRouteView: () => void;
   clearSelection: () => void;
 }
@@ -45,7 +50,6 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      // INITIAL STATE
       user: null,
       isAuthenticated: false,
       hasAcceptedTerms: false,
@@ -56,9 +60,8 @@ export const useAppStore = create<AppState>()(
       routeStops: [],
       isRouteViewMode: false,
       isPickingLocation: false,
-      currentMapLocationName: "Locating...",
+      currentMapLocationName: "Quezon City",
 
-      // AUTH ACTIONS
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setGuestUser: () =>
         set({
@@ -68,12 +71,11 @@ export const useAppStore = create<AppState>()(
             display_name: "Guest Commuter",
             role: "guest",
           },
-          isAuthenticated: false, // Guest is not "Authenticated" in backend terms
+          isAuthenticated: false,
         }),
       setAcceptedTerms: (accepted) => set({ hasAcceptedTerms: accepted }),
       logout: () => set({ user: null, isAuthenticated: false }),
 
-      // MAP ACTIONS
       setUserLocation: (loc) => set({ userLocation: loc }),
       setSearchDestination: (dest) =>
         set({
@@ -116,8 +118,8 @@ export const useAppStore = create<AppState>()(
         }),
     }),
     {
-      name: "commutewise-storage", // LocalStorage key
-      partialize: (state) => ({ hasAcceptedTerms: state.hasAcceptedTerms }), // Only persist this
+      name: "commutewise-storage",
+      partialize: (state) => ({ hasAcceptedTerms: state.hasAcceptedTerms }),
     }
   )
 );

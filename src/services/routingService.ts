@@ -1,18 +1,10 @@
-import { Coordinates } from "@/types/types"; // Ensure you have this type defined
+// FIX: Changed alias '@/' to relative path '../' to ensure it finds the file
+import type { Coordinates } from "../types/types";
 
-// ==================================================================================
-// CONFIGURATION
-// ==================================================================================
 const GEOCODING_BASE_URL = "https://nominatim.openstreetmap.org";
 const ROUTING_BASE_URL = "https://router.project-osrm.org/route/v1";
-
-// QUEZON CITY BOUNDING BOX (Rough Estimates)
-// This helps the search prioritize results inside QC
 const QC_VIEWBOX = "120.98,14.58,121.15,14.80";
 
-// ==================================================================================
-// HELPER: THROTTLING
-// ==================================================================================
 let lastCall = 0;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -24,19 +16,14 @@ const throttle = async () => {
   lastCall = Date.now();
 };
 
-// ==================================================================================
-// 1. GEOCODING (SEARCH PLACES - QC FOCUSED)
-// ==================================================================================
 export const searchPlaces = async (query: string) => {
   if (!query || query.length < 3) return [];
   await throttle();
 
   try {
-    // UPDATED: Added 'viewbox' and 'bounded=1' to prefer QC results
     const url = `${GEOCODING_BASE_URL}/search?format=json&q=${encodeURIComponent(
       query
     )}&limit=5&countrycodes=ph&addressdetails=1&viewbox=${QC_VIEWBOX}&bounded=0`;
-    // bounded=0 means "prefer inside box, but allow outside" (in case they search specifically for Manila)
 
     const response = await fetch(url, {
       headers: { "User-Agent": "CommuteWise-QC-StudentProject/1.0" },
@@ -53,15 +40,11 @@ export const searchPlaces = async (query: string) => {
       lat: parseFloat(item.lat),
       lng: parseFloat(item.lon),
     }));
-  } catch (error) {
-    console.warn("SEARCH FAILED:", error);
+  } catch {
     return [];
   }
 };
 
-// ==================================================================================
-// 2. REVERSE GEOCODING (GET LOCATION NAME)
-// ==================================================================================
 export const getLocationName = async (
   lat: number,
   lng: number
@@ -80,7 +63,6 @@ export const getLocationName = async (
     const data = await response.json();
     const a = data.address;
 
-    // HIERARCHY LOGIC
     const name =
       a.amenity ||
       a.building ||
@@ -90,16 +72,11 @@ export const getLocationName = async (
       a.road ||
       "Pinned Location";
 
-    // AREA LOGIC (Prioritize QC context)
     const area =
-      a.suburb || // Barangay
-      a.quarter ||
-      a.neighbourhood ||
-      a.city ||
-      "Quezon City";
+      a.suburb || a.quarter || a.neighbourhood || a.city || "Quezon City";
 
     return { name, area };
-  } catch (error) {
+  } catch {
     return {
       name: "Unknown Location",
       area: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
@@ -107,12 +84,9 @@ export const getLocationName = async (
   }
 };
 
-// ==================================================================================
-// 3. WALKING ROUTE
-// ==================================================================================
 export const getWalkingPath = async (
-  start: { lat: number; lng: number },
-  end: { lat: number; lng: number }
+  start: Coordinates,
+  end: Coordinates
 ): Promise<[number, number][] | null> => {
   try {
     const url = `${ROUTING_BASE_URL}/walking/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
@@ -128,8 +102,7 @@ export const getWalkingPath = async (
     ]);
 
     return coordinates;
-  } catch (error) {
-    console.error("ROUTING API FAILED:", error);
+  } catch {
     return null;
   }
 };

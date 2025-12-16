@@ -1,8 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+// FIX: Clean imports
+import { Card, CardContent } from "@/components/ui/card"; // Removed Header/Title
 import { Button } from "@/components/ui/button";
 import { MessageSquare, ThumbsUp, MapPin } from "lucide-react";
 
-export default function Community() {
+export default function Forum() {
+  // ... rest of the code logic remains the same
   const posts = [
     {
       id: 1,

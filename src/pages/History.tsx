@@ -1,23 +1,18 @@
+// FIX: Clean imports
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/stores/useAppStore";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card"; // Removed Header/Title/Description
 import { Button } from "@/components/ui/button";
 import {
-  MapPin,
   Clock,
   Calendar,
   Lock,
   ArrowRight,
   History as HistoryIcon,
-} from "lucide-react";
+} from "lucide-react"; // Removed MapPin if not used
 
 export default function History() {
+  // ... rest of code
   const { user } = useAppStore();
   const navigate = useNavigate();
   const isGuest = user?.role === "guest";
